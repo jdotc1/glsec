@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/glsec/glsec/internal/finding"
@@ -163,5 +164,42 @@ func TestIgnore_ExpiredEntryAcceptsNothing(t *testing.T) {
 				t.Errorf("Expired = %v, want %v", got, tc.expired)
 			}
 		})
+	}
+}
+
+// Invalid positions must never be counted as accepted findings by --new-only,
+// even if a normal scan would reject the same ignore line (#1460).
+func TestIgnore_InvalidLineNumbersAreNotBaselined(t *testing.T) {
+	for _, loc := range []string{"ci.yml:0", "ci.yml:-3", "ci.yml:x", "ci.yml:"} {
+		t.Run(loc, func(t *testing.T) {
+			b, err := Load(write(t, loc+" GL001\n"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !b.IsNew(finding.Finding{RuleID: "GL001", File: "ci.yml"}) {
+				t.Errorf("invalid location %q suppressed a new finding", loc)
+			}
+		})
+	}
+	for _, loc := range []string{"ci.yml:1", "C:\\build\\ci.yml:8"} {
+		t.Run(loc, func(t *testing.T) {
+			b, err := Load(write(t, loc+" GL001\n"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			file := loc[:strings.LastIndex(loc, ":")]
+			if b.IsNew(finding.Finding{RuleID: "GL001", File: file}) {
+				t.Errorf("valid location %q was not baselined", loc)
+			}
+		})
+	}
+}
+
+func TestIgnore_OversizedLineIsAnError(t *testing.T) {
+	// The Scanner token ceiling is 64 KiB; silently accepting the prefix
+	// would make a truncated baseline appear complete.
+	b, err := Load(write(t, "ci.yml:1 GL001\n#"+strings.Repeat("x", 70*1024)+"\n"))
+	if err == nil || b != nil {
+		t.Fatalf("Load = (%v, %v); want an error and no partial baseline", b, err)
 	}
 }
