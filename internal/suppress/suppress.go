@@ -186,6 +186,27 @@ func IgnoreExpiry(fields []string) string {
 	return expiry
 }
 
+// ParseIgnoreLine validates a .glsec-ignore entry for both normal scans and
+// --new-only baselines. Its last-colon split preserves paths with drive letters;
+// malformed or non-positive line numbers are ignored by both readers.
+func ParseIgnoreLine(line string) (file string, lineNum int, ruleID string, entry Entry, ok bool) {
+	fields := strings.Fields(strings.TrimSpace(line))
+	if len(fields) < 2 || strings.HasPrefix(fields[0], "#") {
+		return "", 0, "", Entry{}, false
+	}
+	loc := fields[0]
+	colon := strings.LastIndex(loc, ":")
+	if colon < 0 {
+		return "", 0, "", Entry{}, false
+	}
+	n, err := strconv.Atoi(loc[colon+1:])
+	if err != nil || n < 1 {
+		return "", 0, "", Entry{}, false
+	}
+	return loc[:colon], n, fields[1],
+		Entry{Expiry: IgnoreExpiry(fields), Source: finding.SourceIgnoreFile}, true
+}
+
 // LoadIgnoreFile reads a .glsec-ignore file and returns suppressions for the
 // given target file. Entries for other files are silently skipped.
 // A missing file is not an error: it returns an empty map and a nil error, so
@@ -213,25 +234,11 @@ func LoadIgnoreFile(ignorePath, targetFile string) (Map, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
+		filePath, lineNum, ruleID, entry, ok := ParseIgnoreLine(line)
+		if !ok || filePath != targetFile {
 			continue
 		}
-		loc, ruleID := fields[0], fields[1]
-		expiry := IgnoreExpiry(fields)
-		lastColon := strings.LastIndex(loc, ":")
-		if lastColon < 0 {
-			continue
-		}
-		filePath := loc[:lastColon]
-		lineNum, err := strconv.Atoi(loc[lastColon+1:])
-		if err != nil || lineNum < 1 {
-			continue
-		}
-		if filePath != targetFile {
-			continue
-		}
-		m.set(lineNum, ruleID, Entry{Expiry: expiry, Source: finding.SourceIgnoreFile})
+		m.set(lineNum, ruleID, entry)
 	}
 	if err := scanner.Err(); err != nil {
 		return m, err
