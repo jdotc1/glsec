@@ -156,11 +156,11 @@ On exit 2 after the scan started, the machine-readable reports still list the fi
 
 glsec reads only regular files of up to 64 MB as pipelines: a FIFO, a device, a directory or a larger file is an exit 2 for the file named on the command line, and a child pipeline file like that is skipped with a warning (an error under `--strict`, see [Reusable configuration](#reusable-configuration)).
 
-Use `--strict` to treat `warn` findings as hard failures (exit 1). Use `--no-exit-codes` to always exit 0 regardless of findings (advisory/informational mode). Some settings can also be set in [`.glsec.yml`](#configuration-file); [`glsec.example.yml`](glsec.example.yml) lists them all:
+Use `--strict` to treat `warn` findings as hard failures (exit 1). Use `--no-exit-codes` to suppress only the finding-based exit 1 (advisory/informational mode); parsing, scanning, and policy errors still exit 2. With both options enabled, `--strict` can still turn a failed include or other policy error into exit 2. Some settings can also be set in [`.glsec.yml`](#configuration-file); [`glsec.example.yml`](glsec.example.yml) lists them all:
 
 ```yaml
 strict: true        # warn findings cause exit 1
-no-exit-codes: true # never exit 1 (overrides strict, with a warning)
+no-exit-codes: true # suppress finding exit 1; scan/policy errors still exit 2
 
 # Optional container-image policies (GL065 and GL001):
 allowed_registries: []       # empty permits any registry
