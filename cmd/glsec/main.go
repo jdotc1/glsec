@@ -249,7 +249,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		cfg.NoExitCodes = true
 	}
 	if cfg.Strict && cfg.NoExitCodes {
-		_, _ = fmt.Fprintln(stderr, "warning: strict has no effect with no-exit-codes, which always exits 0")
+		_, _ = fmt.Fprintln(stderr, "warning: --no-exit-codes suppresses finding-based exit 1 (including --strict warnings); scan and policy errors still exit 2")
 	}
 	if *generateIgnoreFlag && flagSet(flags, "format") {
 		_, _ = fmt.Fprintln(stderr, "warning: --format has no effect with --generate-ignore, which writes .glsec-ignore and prints no report")
