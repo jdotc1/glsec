@@ -62,6 +62,26 @@ func TestRunInventory_Jobs(t *testing.T) {
 	}
 }
 
+// A non-mapping YAML document is not a GitLab pipeline. Neither inventory
+// format may report an empty successful result for it (#1459).
+func TestRunInventory_RejectsNonMappingYAML(t *testing.T) {
+	for _, src := range []string{"- a\\n- b\\n", "scalar\\n"} {
+		for _, format := range []string{"jobs", "cyclonedx"} {
+			t.Run(format+"/"+strings.ReplaceAll(strings.TrimSpace(src), "\\n", "-"), func(t *testing.T) {
+				code, stdout, stderr := runCLI(t, map[string]string{".gitlab-ci.yml": src}, "inventory", "--format", format)
+				if code != 2 || stdout != "" || !strings.Contains(stderr, "expected a top-level mapping") {
+					t.Errorf("exit %d, stdout %q, stderr %q: want error 2 with no report", code, stdout, stderr)
+				}
+			})
+		}
+	}
+	for _, format := range []string{"jobs", "cyclonedx"} {
+		if code, _, stderr := runCLI(t, map[string]string{".gitlab-ci.yml": "include:\\n  - local: .ci.yml\\n"}, "inventory", "--format", format); code != 0 {
+			t.Errorf("includes-only pipeline (%s): exit %d, stderr %q", format, code, stderr)
+		}
+	}
+}
+
 func TestRunInventory_Errors(t *testing.T) {
 	files := map[string]string{".gitlab-ci.yml": "job:\n  script: [x]\n"}
 	for _, args := range [][]string{
