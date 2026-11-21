@@ -16,6 +16,7 @@ import (
 	"github.com/glsec/glsec/internal/inventory"
 	"github.com/glsec/glsec/internal/output"
 	"github.com/glsec/glsec/internal/parser"
+	"github.com/glsec/glsec/internal/validate"
 )
 
 // runInventory writes a CycloneDX BOM of the images and includes a pipeline
@@ -51,6 +52,12 @@ func runInventory(args []string, stdout, stderr io.Writer) int {
 	}
 	doc, err := parser.ParseFile(file)
 	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "error: %s\n", output.Sanitize(err.Error()))
+		return 2
+	}
+	// Inventory must not report a successful empty inventory for YAML that
+	// is not a pipeline. Match the top-level check used by normal scans.
+	if err := validate.Mapping(file, doc); err != nil {
 		_, _ = fmt.Fprintf(stderr, "error: %s\n", output.Sanitize(err.Error()))
 		return 2
 	}
