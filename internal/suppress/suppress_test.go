@@ -348,3 +348,31 @@ func TestFromComment_FreeTextIsNoExpiry(t *testing.T) {
 		}
 	}
 }
+
+
+func TestParseIgnoreLine_PositionValidation(t *testing.T) {
+	for _, loc := range []string{"ci.yml:0", "ci.yml:-1", "ci.yml:x", "ci.yml:"} {
+		_, _, _, _, ok := ParseIgnoreLine(loc+" GL001")
+		if ok {
+			t.Errorf("accepted invalid position %q", loc)
+		}
+	}
+	file, line, rule, entry, ok := ParseIgnoreLine("C:\\build\\ci.yml:17 GL001 exp:2999-01-01")
+	if !ok || file != "C:\\build\\ci.yml" || line != 17 || rule != "GL001" || entry.Expiry != "2999-01-01" {
+		t.Errorf("valid Windows path failed: file=%q line=%d rule=%q entry=%+v ok=%v", file, line, rule, entry, ok)
+	}
+}
+
+func TestLoadIgnoreFile_OversizedLineIsAnError(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "ignore-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	if _, err := f.WriteString("ci.yml:1 GL001\n#"+strings.Repeat("x", 70*1024)+"\n"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadIgnoreFile(f.Name(), "ci.yml"); err == nil {
+		t.Error("oversized line silently truncated a normal scan's ignore file")
+	}
+}
